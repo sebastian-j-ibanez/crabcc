@@ -2,7 +2,7 @@
 name = "crabcc"
 version = "0.1.0"
 authors = [ "sebastian-j-ibanez" ]
-description = "crabcc - the crab C compiler"
+description = "The crabby C compiler."
 edition = "2024"
 
 [dependencies]
