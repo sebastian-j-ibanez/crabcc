@@ -24,7 +24,8 @@ fn run() -> Result<(), Error> {
     match flag {
         CliFlag::Help => print_help(),
         CliFlag::Lex => {
-            let mut chars = read_file(file_name)?;
+            let raw_bytes = read_file(file_name)?;
+            let mut chars = raw_bytes.iter().map(|b| *b as char).collect();
             let tokens = lex_input(&mut chars)?;
         }
         CliFlag::Parse => todo!(),
@@ -84,8 +85,18 @@ fn read_file(file_name: String) -> Result<Vec<u8>, Error> {
 }
 
 /// Tokenize input.
-fn lex_input(chars: &mut Vec<u8>) -> Result<Vec<char>, Error> {
-    todo!()
+fn lex_input(chars: &mut Vec<char>) -> Result<Vec<char>, Error> {
+    while !chars.is_empty() {
+        // Trim any leading whitespace.
+        let first_char_index = chars
+            .iter()
+            .position(|b| !b.is_ascii_whitespace())
+            .unwrap_or(chars.len());
+        chars.drain(..first_char_index);
+
+        // Find longest match to token type;
+    }
+    Ok(chars.to_owned())
 }
 
 // TODO: finish lex_input, proably delete below code
@@ -105,22 +116,32 @@ enum TokenType {
 }
 
 /// Map token to corresponding regex.
-type TokenMap = (TokenType, Regex);
+struct TokenMap(TokenType, Regex);
+
+impl TokenMap {
+    fn longest_match(chars: &Vec<char>) -> usize {}
+}
 
 fn regex_token_map() -> Vec<TokenMap> {
     let mut v = Vec::new();
-    v.push((
+    v.push(TokenMap(
         TokenType::Identifier,
         Regex::new("[a-zA-Z_]\\w*\\b").unwrap(),
     ));
-    v.push((TokenType::Constant, Regex::new("[0-9]+\\b").unwrap()));
-    v.push((TokenType::Int, Regex::new("int\\b").unwrap()));
-    v.push((TokenType::Void, Regex::new("void\\b").unwrap()));
-    v.push((TokenType::Return, Regex::new("return\\b").unwrap()));
-    v.push((TokenType::OpenParen, Regex::new("\\(").unwrap()));
-    v.push((TokenType::CloseParen, Regex::new("\\)").unwrap()));
-    v.push((TokenType::OpenBrace, Regex::new("{").unwrap()));
-    v.push((TokenType::CloseBrace, Regex::new("}").unwrap()));
-    v.push((TokenType::SemiColon, Regex::new(";").unwrap()));
+    v.push(TokenMap(
+        TokenType::Constant,
+        Regex::new("[0-9]+\\b").unwrap(),
+    ));
+    v.push(TokenMap(TokenType::Int, Regex::new("int\\b").unwrap()));
+    v.push(TokenMap(TokenType::Void, Regex::new("void\\b").unwrap()));
+    v.push(TokenMap(
+        TokenType::Return,
+        Regex::new("return\\b").unwrap(),
+    ));
+    v.push(TokenMap(TokenType::OpenParen, Regex::new("\\(").unwrap()));
+    v.push(TokenMap(TokenType::CloseParen, Regex::new("\\)").unwrap()));
+    v.push(TokenMap(TokenType::OpenBrace, Regex::new("{").unwrap()));
+    v.push(TokenMap(TokenType::CloseBrace, Regex::new("}").unwrap()));
+    v.push(TokenMap(TokenType::SemiColon, Regex::new(";").unwrap()));
     v
 }
