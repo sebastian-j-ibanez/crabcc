@@ -6,3 +6,4 @@ description = "The crabby C compiler."
 edition = "2024"
 
 [dependencies]
+regex = "1.12.3"
