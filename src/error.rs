@@ -7,6 +7,7 @@ pub enum Error {
     MissingCliFlag,
     FileNotFound,
     UnableToReadFile,
+    LexError,
 }
 
 impl Display for Error {
@@ -16,6 +17,7 @@ impl Display for Error {
             Self::MissingCliFlag => write!(f, "expected cli flag"),
             Self::FileNotFound => write!(f, "file not found"),
             Self::UnableToReadFile => write!(f, "unable to read file"),
+            Self::LexError => write!(f, "unable to lex file"),
         }
     }
 }

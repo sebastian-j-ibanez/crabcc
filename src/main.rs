@@ -24,9 +24,8 @@ fn run() -> Result<(), Error> {
     match flag {
         CliFlag::Help => print_help(),
         CliFlag::Lex => {
-            let raw_bytes = read_file(file_name)?;
-            let mut chars = raw_bytes.iter().map(|b| *b as char).collect();
-            let tokens = lex_input(&mut chars)?;
+            let mut chars = read_file(file_name)?;
+            let _tokens = lex_input(&mut chars)?;
         }
         CliFlag::Parse => todo!(),
         CliFlag::Codegen => todo!(),
@@ -46,7 +45,7 @@ enum CliFlag {
 
 fn parse_args() -> Result<(CliFlag, String), Error> {
     let flag_string = env::args().nth(1).ok_or(Error::MissingCliFlag)?;
-    let file_name = env::args().nth(1).ok_or(Error::MissingCliFlag)?;
+    let file_name = env::args().nth(2).ok_or(Error::MissingCliFlag)?;
     let flag = match flag_string.as_ref() {
         "-h" | "--help" => CliFlag::Help,
         "--lex" | "-l" => CliFlag::Lex,
@@ -75,17 +74,26 @@ fn print_help() {
 // LEXER
 
 /// Read source file.
-fn read_file(file_name: String) -> Result<Vec<u8>, Error> {
+fn read_file(file_name: String) -> Result<Vec<char>, Error> {
     let mut file = File::open(file_name).map_err(|_| Error::FileNotFound)?;
-    let mut buf: Vec<u8> = Vec::new();
+    let mut byte_buf: Vec<u8> = Vec::new();
     let _ = file
-        .read_to_end(&mut buf)
+        .read_to_end(&mut byte_buf)
         .map_err(|_| Error::UnableToReadFile)?;
-    Ok(buf)
+    let chars: Vec<char> = byte_buf.iter().map(|b| *b as char).collect();
+    Ok(chars)
 }
 
+struct Token {
+    _value: String,
+    _token_type: TokenType,
+}
+
+impl Token {}
+
 /// Tokenize input.
-fn lex_input(chars: &mut Vec<char>) -> Result<Vec<char>, Error> {
+fn lex_input(chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
+    let mut tokens: Vec<Token> = Vec::new();
     while !chars.is_empty() {
         // Trim any leading whitespace.
         let first_char_index = chars
@@ -94,14 +102,32 @@ fn lex_input(chars: &mut Vec<char>) -> Result<Vec<char>, Error> {
             .unwrap_or(chars.len());
         chars.drain(..first_char_index);
 
-        // Find longest match to token type;
+        // Find longest match to token type
+        let token_regex_map = token_regex_map();
+        let (token_type, index): (TokenType, usize) = token_regex_map
+            .iter()
+            .filter_map(|tr| tr.longest_match(chars))
+            .max_by_key(|(_, index)| *index)
+            .ok_or_else(|| {
+                eprintln!("error: unexpected character, unable to lex");
+                Error::LexError
+            })?;
+
+        // Add substring to tokens.
+        let token = Token {
+            _value: chars[0..index + 1].iter().collect(),
+            _token_type: token_type,
+        };
+        tokens.push(token);
+
+        // Remove matched substring from chars.
+        chars.drain(..index + 1);
     }
-    Ok(chars.to_owned())
+    Ok(tokens)
 }
 
-// TODO: finish lex_input, proably delete below code
-
 /// Source code token.
+#[derive(Debug, Copy, Clone)]
 enum TokenType {
     Identifier,
     Constant,
@@ -119,10 +145,22 @@ enum TokenType {
 struct TokenMap(TokenType, Regex);
 
 impl TokenMap {
-    fn longest_match(chars: &Vec<char>) -> usize {}
+    /// Return end index of longest possible match.
+    fn longest_match(&self, chars: &Vec<char>) -> Option<(TokenType, usize)> {
+        let mut longest_match_index = 0;
+        for i in 0..chars.len() {
+            let temp: String = chars[0..i].iter().map(|c| *c).collect();
+            if self.1.is_match(&temp) {
+                longest_match_index += 1;
+            } else {
+                break;
+            }
+        }
+        Some((self.0, longest_match_index))
+    }
 }
 
-fn regex_token_map() -> Vec<TokenMap> {
+fn token_regex_map() -> Vec<TokenMap> {
     let mut v = Vec::new();
     v.push(TokenMap(
         TokenType::Identifier,
@@ -140,8 +178,8 @@ fn regex_token_map() -> Vec<TokenMap> {
     ));
     v.push(TokenMap(TokenType::OpenParen, Regex::new("\\(").unwrap()));
     v.push(TokenMap(TokenType::CloseParen, Regex::new("\\)").unwrap()));
-    v.push(TokenMap(TokenType::OpenBrace, Regex::new("{").unwrap()));
-    v.push(TokenMap(TokenType::CloseBrace, Regex::new("}").unwrap()));
+    v.push(TokenMap(TokenType::OpenBrace, Regex::new("\\{").unwrap()));
+    v.push(TokenMap(TokenType::CloseBrace, Regex::new("\\}").unwrap()));
     v.push(TokenMap(TokenType::SemiColon, Regex::new(";").unwrap()));
     v
 }
