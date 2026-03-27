@@ -112,47 +112,55 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
         };
 
         // Ignore single line comments.
-        if input_chars.starts_with(&['/', '/']) {
-            let newline_index = input_chars
-                .iter()
-                .position(|c| *c == '\n')
-                .unwrap_or(input_chars.len());
-            input_chars.drain(..newline_index + 1);
-            global_index += newline_index;
+        loop {
+            if input_chars.starts_with(&['/', '/']) {
+                let newline_index = input_chars
+                    .iter()
+                    .position(|c| *c == '\n')
+                    .unwrap_or(input_chars.len());
+                input_chars.drain(..=newline_index);
+                global_index += newline_index + 1;
 
-            // Trim any leading whitespace.
-            let first_char_index = input_chars
-                .iter()
-                .position(|b| !b.is_ascii_whitespace())
-                .unwrap_or(input_chars.len());
-            input_chars.drain(..first_char_index);
-            global_index += first_char_index;
+                // Trim any leading whitespace.
+                let first_char_index = input_chars
+                    .iter()
+                    .position(|b| !b.is_ascii_whitespace())
+                    .unwrap_or(input_chars.len());
+                input_chars.drain(..first_char_index);
+                global_index += first_char_index;
+            } else {
+                break;
+            }
         }
 
         // Ignore multi line comments.
-        if input_chars.starts_with(&['/', '*']) {
-            let mut comment_end_index: Option<usize> = None;
-            for i in 0..input_chars.len() - 1 {
-                if input_chars[i] == '*' && input_chars[i + 1] == '/' {
-                    comment_end_index = Some(i + 1);
+        loop {
+            if input_chars.starts_with(&['/', '*']) {
+                let mut comment_end_index: Option<usize> = None;
+                for i in 0..input_chars.len() - 1 {
+                    if input_chars[i] == '*' && input_chars[i + 1] == '/' {
+                        comment_end_index = Some(i + 1);
+                    }
                 }
-            }
 
-            if let Some(index) = comment_end_index {
-                input_chars.drain(..=index);
-                global_index += index + 1;
+                if let Some(index) = comment_end_index {
+                    input_chars.drain(..=index);
+                    global_index += index + 1;
+                } else {
+                    eprintln!("unfinished multi-line comment at: {}", global_index);
+                    return Err(Error::UnfinishedMultilineComment);
+                }
+
+                // Trim any leading whitespace.
+                let first_char_index = input_chars
+                    .iter()
+                    .position(|b| !b.is_ascii_whitespace())
+                    .unwrap_or(input_chars.len());
+                input_chars.drain(..first_char_index);
+                global_index += first_char_index;
             } else {
-                eprintln!("unfinished multi-line comment at: {}", global_index);
-                return Err(Error::UnfinishedMultilineComment);
+                break;
             }
-
-            // Trim any leading whitespace.
-            let first_char_index = input_chars
-                .iter()
-                .position(|b| !b.is_ascii_whitespace())
-                .unwrap_or(input_chars.len());
-            input_chars.drain(..first_char_index);
-            global_index += first_char_index;
         }
 
         // Find the longest match to token type
@@ -189,22 +197,12 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
         global_index += index + 1;
 
         match token_type {
-            TokenType::Identifier => {
-                if !input_chars[0].is_ascii_alphabetic() {
-                    todo!()
-                }
-            }
-            TokenType::Constant => {
-                if !input_chars[0].is_ascii_alphabetic() {
-                    // TODO: get invalid constant starting index.
-                    let start_index = todo!();
-                    eprintln!(
-                        "invalid identifier '{}' at index {}",
-                        original_input[start_index..index]
-                            .iter()
-                            .collect::<String>(),
-                        global_index
-                    );
+            TokenType::Identifier | TokenType::Constant => {
+                if let Some(&next_char) = input_chars.first() {
+                    if next_char.is_ascii_alphanumeric() || next_char == '_' {
+                        eprintln!("invalid identifier or constant");
+                        return Err(Error::LexError);
+                    }
                 }
             }
             _ => {}
@@ -259,12 +257,6 @@ fn token_regex_map() -> Vec<TokenMap> {
     v.push(TokenMap(TokenType::OpenBrace, Regex::new("^\\{$").unwrap()));
     v.push(TokenMap(TokenType::CloseBrace, Regex::new("^}$").unwrap()));
     v.push(TokenMap(TokenType::SemiColon, Regex::new("^;$").unwrap()));
-    // v.push(TokenMap(
-    //     TokenType::Return,
-    //     Regex::new("return\\b").unwrap(),
-    // ));
-    // v.push(TokenMap(TokenType::Int, Regex::new("int\\b").unwrap()));
-    // v.push(TokenMap(TokenType::Void, Regex::new("void\\b").unwrap()));
     v.push(TokenMap(
         TokenType::Identifier,
         Regex::new("^[a-zA-Z_]\\w*\\b$").unwrap(),
