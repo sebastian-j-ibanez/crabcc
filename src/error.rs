@@ -8,6 +8,8 @@ pub enum Error {
     FileNotFound,
     UnableToReadFile,
     LexError,
+    Unimplemented,
+    UnfinishedMultilineComment,
 }
 
 impl Display for Error {
@@ -18,6 +20,8 @@ impl Display for Error {
             Self::FileNotFound => write!(f, "file not found"),
             Self::UnableToReadFile => write!(f, "unable to read file"),
             Self::LexError => write!(f, "unable to lex file"),
+            Self::Unimplemented => write!(f, "unimplemented"),
+            Self::UnfinishedMultilineComment => write!(f, "unfinished multiline comment"),
         }
     }
 }

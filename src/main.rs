@@ -27,8 +27,7 @@ fn run() -> Result<(), Error> {
             let mut chars = read_file(file_name)?;
             let _tokens = lex_input(&mut chars)?;
         }
-        CliFlag::Parse => todo!(),
-        CliFlag::Codegen => todo!(),
+        CliFlag::Parse | CliFlag::Codegen => return Err(Error::Unimplemented),
     }
 
     Ok(())
@@ -84,6 +83,7 @@ fn read_file(file_name: String) -> Result<Vec<char>, Error> {
     Ok(chars)
 }
 
+#[derive(Debug, Clone)]
 struct Token {
     _value: String,
     _token_type: TokenType,
@@ -92,36 +92,123 @@ struct Token {
 impl Token {}
 
 /// Tokenize input.
-fn lex_input(chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
+fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
+    let original_input = input_chars.clone();
+    let mut global_index = 0;
     let mut tokens: Vec<Token> = Vec::new();
-    while !chars.is_empty() {
+    while !input_chars.is_empty() {
         // Trim any leading whitespace.
-        let first_char_index = chars
+        let first_char_index = input_chars
             .iter()
             .position(|b| !b.is_ascii_whitespace())
-            .unwrap_or(chars.len());
-        chars.drain(..first_char_index);
+            .unwrap_or(input_chars.len());
+        input_chars.drain(..first_char_index);
+        global_index += first_char_index;
 
-        // Find longest match to token type
+        // Catch when input_chars is only whitespace,
+        // causing while loop to run on empty input.
+        if input_chars.is_empty() {
+            break;
+        };
+
+        // Ignore single line comments.
+        loop {
+            if input_chars.starts_with(&['/', '/']) {
+                let newline_index = input_chars
+                    .iter()
+                    .position(|c| *c == '\n')
+                    .unwrap_or(input_chars.len());
+                input_chars.drain(..=newline_index);
+                global_index += newline_index + 1;
+
+                // Trim any leading whitespace.
+                let first_char_index = input_chars
+                    .iter()
+                    .position(|b| !b.is_ascii_whitespace())
+                    .unwrap_or(input_chars.len());
+                input_chars.drain(..first_char_index);
+                global_index += first_char_index;
+            } else {
+                break;
+            }
+        }
+
+        // Ignore multi line comments.
+        loop {
+            if input_chars.starts_with(&['/', '*']) {
+                let mut comment_end_index: Option<usize> = None;
+                for i in 0..input_chars.len() - 1 {
+                    if input_chars[i] == '*' && input_chars[i + 1] == '/' {
+                        comment_end_index = Some(i + 1);
+                    }
+                }
+
+                if let Some(index) = comment_end_index {
+                    input_chars.drain(..=index);
+                    global_index += index + 1;
+                } else {
+                    eprintln!("unfinished multi-line comment at: {}", global_index);
+                    return Err(Error::UnfinishedMultilineComment);
+                }
+
+                // Trim any leading whitespace.
+                let first_char_index = input_chars
+                    .iter()
+                    .position(|b| !b.is_ascii_whitespace())
+                    .unwrap_or(input_chars.len());
+                input_chars.drain(..first_char_index);
+                global_index += first_char_index;
+            } else {
+                break;
+            }
+        }
+
+        // Find the longest match to token type
         let token_regex_map = token_regex_map();
         let (token_type, index): (TokenType, usize) = token_regex_map
             .iter()
-            .filter_map(|tr| tr.longest_match(chars))
+            .filter_map(|tr| tr.longest_match(input_chars))
             .max_by_key(|(_, index)| *index)
             .ok_or_else(|| {
-                eprintln!("error: unexpected character, unable to lex");
+                eprintln!(
+                    "unexpected token at index {}: {}",
+                    global_index, original_input[global_index]
+                );
+                eprintln!("rest of input: {:?}", input_chars);
                 Error::LexError
             })?;
 
+        let value: String = input_chars[0..index + 1].iter().collect();
+        let token_type = match value.as_str() {
+            "int" => TokenType::IntKeyword,
+            "void" => TokenType::VoidKeyword,
+            "return" => TokenType::ReturnKeyword,
+            _ => token_type,
+        };
+
         // Add substring to tokens.
         let token = Token {
-            _value: chars[0..index + 1].iter().collect(),
+            _value: value,
             _token_type: token_type,
         };
-        tokens.push(token);
 
         // Remove matched substring from chars.
-        chars.drain(..index + 1);
+        input_chars.drain(..=index);
+        global_index += index + 1;
+
+        match token_type {
+            TokenType::Identifier | TokenType::Constant => {
+                if let Some(&next_char) = input_chars.first() {
+                    if next_char.is_ascii_alphanumeric() || next_char == '_' {
+                        eprintln!("invalid identifier or constant");
+                        return Err(Error::LexError);
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        tokens.push(token);
     }
     Ok(tokens)
 }
@@ -131,9 +218,9 @@ fn lex_input(chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
 enum TokenType {
     Identifier,
     Constant,
-    Int,
-    Void,
-    Return,
+    IntKeyword,
+    VoidKeyword,
+    ReturnKeyword,
     OpenParen,
     CloseParen,
     OpenBrace,
@@ -147,39 +234,36 @@ struct TokenMap(TokenType, Regex);
 impl TokenMap {
     /// Return end index of longest possible match.
     fn longest_match(&self, chars: &Vec<char>) -> Option<(TokenType, usize)> {
-        let mut longest_match_index = 0;
+        let mut longest_match_index = None;
         for i in 0..chars.len() {
-            let temp: String = chars[0..i].iter().map(|c| *c).collect();
-            if self.1.is_match(&temp) {
-                longest_match_index += 1;
+            let temp: String = chars[0..=i].iter().collect();
+            if self.1.captures(&temp).is_some() {
+                longest_match_index = Some(temp.len() - 1);
             } else {
                 break;
             }
         }
-        Some((self.0, longest_match_index))
+        longest_match_index.map(|idx| (self.0, idx))
     }
 }
 
 fn token_regex_map() -> Vec<TokenMap> {
     let mut v = Vec::new();
+    v.push(TokenMap(TokenType::OpenParen, Regex::new("^\\($").unwrap()));
+    v.push(TokenMap(
+        TokenType::CloseParen,
+        Regex::new("^\\)$").unwrap(),
+    ));
+    v.push(TokenMap(TokenType::OpenBrace, Regex::new("^\\{$").unwrap()));
+    v.push(TokenMap(TokenType::CloseBrace, Regex::new("^}$").unwrap()));
+    v.push(TokenMap(TokenType::SemiColon, Regex::new("^;$").unwrap()));
     v.push(TokenMap(
         TokenType::Identifier,
-        Regex::new("[a-zA-Z_]\\w*\\b").unwrap(),
+        Regex::new("^[a-zA-Z_]\\w*\\b$").unwrap(),
     ));
     v.push(TokenMap(
         TokenType::Constant,
-        Regex::new("[0-9]+\\b").unwrap(),
+        Regex::new("^[0-9]+\\b$").unwrap(),
     ));
-    v.push(TokenMap(TokenType::Int, Regex::new("int\\b").unwrap()));
-    v.push(TokenMap(TokenType::Void, Regex::new("void\\b").unwrap()));
-    v.push(TokenMap(
-        TokenType::Return,
-        Regex::new("return\\b").unwrap(),
-    ));
-    v.push(TokenMap(TokenType::OpenParen, Regex::new("\\(").unwrap()));
-    v.push(TokenMap(TokenType::CloseParen, Regex::new("\\)").unwrap()));
-    v.push(TokenMap(TokenType::OpenBrace, Regex::new("\\{").unwrap()));
-    v.push(TokenMap(TokenType::CloseBrace, Regex::new("\\}").unwrap()));
-    v.push(TokenMap(TokenType::SemiColon, Regex::new(";").unwrap()));
     v
 }
