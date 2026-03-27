@@ -83,6 +83,7 @@ fn read_file(file_name: String) -> Result<Vec<char>, Error> {
     Ok(chars)
 }
 
+#[derive(Debug, Clone)]
 struct Token {
     _value: String,
     _token_type: TokenType,
@@ -92,13 +93,10 @@ impl Token {}
 
 /// Tokenize input.
 fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
+    let original_input = input_chars.clone();
     let mut global_index = 0;
     let mut tokens: Vec<Token> = Vec::new();
     while !input_chars.is_empty() {
-        // let is_identifier = Regex::new("^[a-zA-Z_]\\w*\\b").unwrap();
-        // let temp = input_chars.clone().iter().collect::<String>();
-        // println!("{}\nis identifier: {}", temp, is_identifier.is_match(&temp));
-
         // Trim any leading whitespace.
         let first_char_index = input_chars
             .iter()
@@ -106,6 +104,12 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
             .unwrap_or(input_chars.len());
         input_chars.drain(..first_char_index);
         global_index += first_char_index;
+
+        // Catch when input_chars is only whitespace,
+        // causing while loop to run on empty input.
+        if input_chars.is_empty() {
+            break;
+        };
 
         // Ignore single line comments.
         if input_chars.starts_with(&['/', '/']) {
@@ -115,12 +119,19 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
                 .unwrap_or(input_chars.len());
             input_chars.drain(..newline_index + 1);
             global_index += newline_index;
+
+            // Trim any leading whitespace.
+            let first_char_index = input_chars
+                .iter()
+                .position(|b| !b.is_ascii_whitespace())
+                .unwrap_or(input_chars.len());
+            input_chars.drain(..first_char_index);
+            global_index += first_char_index;
         }
 
         // Ignore multi line comments.
         if input_chars.starts_with(&['/', '*']) {
-            // TODO: fix this
-            let mut comment_end_index: Option<usize> = None; // If comment is unfinished, comment length is the rest of the input.
+            let mut comment_end_index: Option<usize> = None;
             for i in 0..input_chars.len() - 1 {
                 if input_chars[i] == '*' && input_chars[i + 1] == '/' {
                     comment_end_index = Some(i + 1);
@@ -129,10 +140,19 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
 
             if let Some(index) = comment_end_index {
                 input_chars.drain(..=index);
+                global_index += index + 1;
             } else {
                 eprintln!("unfinished multi-line comment at: {}", global_index);
                 return Err(Error::UnfinishedMultilineComment);
             }
+
+            // Trim any leading whitespace.
+            let first_char_index = input_chars
+                .iter()
+                .position(|b| !b.is_ascii_whitespace())
+                .unwrap_or(input_chars.len());
+            input_chars.drain(..first_char_index);
+            global_index += first_char_index;
         }
 
         // Find the longest match to token type
@@ -144,7 +164,7 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
             .ok_or_else(|| {
                 eprintln!(
                     "unexpected token at index {}: {}",
-                    global_index, input_chars[0]
+                    global_index, original_input[global_index]
                 );
                 eprintln!("rest of input: {:?}", input_chars);
                 Error::LexError
@@ -152,9 +172,9 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
 
         let value: String = input_chars[0..index + 1].iter().collect();
         let token_type = match value.as_str() {
-            "int" => TokenType::Int,
-            "void" => TokenType::Void,
-            "return" => TokenType::Return,
+            "int" => TokenType::IntKeyword,
+            "void" => TokenType::VoidKeyword,
+            "return" => TokenType::ReturnKeyword,
             _ => token_type,
         };
 
@@ -163,11 +183,34 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
             _value: value,
             _token_type: token_type,
         };
-        tokens.push(token);
 
         // Remove matched substring from chars.
-        input_chars.drain(..index + 1);
+        input_chars.drain(..=index);
         global_index += index + 1;
+
+        match token_type {
+            TokenType::Identifier => {
+                if !input_chars[0].is_ascii_alphabetic() {
+                    todo!()
+                }
+            }
+            TokenType::Constant => {
+                if !input_chars[0].is_ascii_alphabetic() {
+                    // TODO: get invalid constant starting index.
+                    let start_index = todo!();
+                    eprintln!(
+                        "invalid identifier '{}' at index {}",
+                        original_input[start_index..index]
+                            .iter()
+                            .collect::<String>(),
+                        global_index
+                    );
+                }
+            }
+            _ => {}
+        }
+
+        tokens.push(token);
     }
     Ok(tokens)
 }
@@ -177,10 +220,9 @@ fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
 enum TokenType {
     Identifier,
     Constant,
-    // Comment,
-    Int,
-    Void,
-    Return,
+    IntKeyword,
+    VoidKeyword,
+    ReturnKeyword,
     OpenParen,
     CloseParen,
     OpenBrace,
@@ -195,8 +237,8 @@ impl TokenMap {
     /// Return end index of longest possible match.
     fn longest_match(&self, chars: &Vec<char>) -> Option<(TokenType, usize)> {
         let mut longest_match_index = None;
-        for i in 1..=chars.len() {
-            let temp: String = chars[0..i].iter().collect();
+        for i in 0..chars.len() {
+            let temp: String = chars[0..=i].iter().collect();
             if self.1.captures(&temp).is_some() {
                 longest_match_index = Some(temp.len() - 1);
             } else {
@@ -223,7 +265,6 @@ fn token_regex_map() -> Vec<TokenMap> {
     // ));
     // v.push(TokenMap(TokenType::Int, Regex::new("int\\b").unwrap()));
     // v.push(TokenMap(TokenType::Void, Regex::new("void\\b").unwrap()));
-    // v.push(TokenMap(TokenType::Comment, Regex::new("^//.*$").unwrap()));
     v.push(TokenMap(
         TokenType::Identifier,
         Regex::new("^[a-zA-Z_]\\w*\\b$").unwrap(),
