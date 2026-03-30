@@ -4,9 +4,9 @@ The crabby C compiler.
 
 ### What is this?
 
-This is an educational project.
+A C compiler built while following [Writing a C Compiler](https://norasandler.com/book/) by Nora Sandler.
 
-I am writing this compiler while reading [Writing a C Compiler](https://norasandler.com/book/) by Nora Sandler.
+This is an educational compiler, not meant for serious use.
 
 ### Why?
 
