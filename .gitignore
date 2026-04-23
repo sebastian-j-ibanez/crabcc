@@ -1,3 +1,9 @@
+# Cargo build artifacts.
 /target
+
+# Editor configs
 .idea/
 .vscode/
+
+# Compiler tests
+writing-a-c-compiler-tests
