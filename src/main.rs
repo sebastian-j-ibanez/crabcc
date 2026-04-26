@@ -2,11 +2,13 @@
 
 use std::{fs::File, io::Read};
 
+use crate::cli::{CliArgs, print_help};
 use crate::{cli::CliFlag, error::Error};
 
 mod cli;
 mod error;
 mod lexer;
+mod parser;
 pub mod tokens;
 
 fn main() {
@@ -20,15 +22,36 @@ fn main() {
     std::process::exit(exit_code);
 }
 
+/// Run compiler.
 fn run() -> Result<(), Error> {
-    let (flag, file_name) = cli::parse_args()?;
-    match flag {
-        CliFlag::Help => cli::print_help(),
-        CliFlag::Lex => {
-            let mut chars = read_file(file_name)?;
-            let _tokens = lexer::lex_input(&mut chars)?;
+    let args = CliArgs::collect_args()?;
+
+    // Help flag is processed first and overrides all other arguments.
+    if args.find_flag(CliFlag::Help) {
+        print_help();
+        return Ok(());
+    }
+
+    let lexer = args.find_flag(CliFlag::Lex);
+    let parser = args.find_flag(CliFlag::Parse);
+    let codegen = args.find_flag(CliFlag::Codegen);
+    let run_all = !lexer && !parser && !codegen; // Run all 3 stages by default.
+
+    // Run lexer
+    if lexer || run_all {
+        let mut chars = read_file(args.get_file_name())?;
+        let _tokens = lexer::lex_input(&mut chars)?;
+        if args.find_flag(CliFlag::Debug) {
+            dbg!(_tokens);
         }
-        CliFlag::Parse | CliFlag::Codegen => return Err(Error::Unimplemented),
+
+        // Run parser
+        if parser || run_all {
+            // Run codegen
+            if codegen || run_all {
+                todo!();
+            }
+        }
     }
 
     Ok(())

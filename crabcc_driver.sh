@@ -67,7 +67,7 @@ gcc -E -P "${source_file}" -o "$preprocessed_file"
 
 case "$step" in
   lex)
-    echo "TODO: implement lexer"
+    cargo run -- --lex $source_file
     exit 0
     ;;
   parse)
