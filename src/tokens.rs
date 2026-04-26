@@ -2,8 +2,8 @@
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    value: String,
-    token_type: TokenType,
+    pub value: String,
+    pub token_type: TokenType,
 }
 
 impl Token {

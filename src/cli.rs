@@ -42,6 +42,9 @@ impl CliArgs {
                 "-c" | "--codegen" => {
                     flags.insert(CliFlag::Codegen);
                 }
+                "-d" | "--debug" => {
+                    flags.insert(CliFlag::Debug);
+                }
                 // File name
                 file_name if !file_name.starts_with("--") && !file_name.starts_with("-") => {
                     file = Some(file_name.to_string());

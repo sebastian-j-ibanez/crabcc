@@ -67,7 +67,7 @@ pub fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
         }
 
         // Find the longest match to token type
-        let token_regex_map = token_regex_map();
+        let token_regex_map = create_token_regex_list();
         let (token_type, index): (TokenType, usize) = token_regex_map
             .iter()
             .filter_map(|tr| tr.longest_match(input_chars))
@@ -125,10 +125,10 @@ fn trim_whitespace(chars: &mut Vec<char>) -> usize {
     first_alphanum_index
 }
 
-/// Map token to corresponding regex.
-struct TokenMap(TokenType, Regex);
+/// Map `TokenType` to corresponding regex.
+struct TokenRegex(TokenType, Regex);
 
-impl TokenMap {
+impl TokenRegex {
     /// Return end index of longest possible match.
     fn longest_match(&self, chars: &Vec<char>) -> Option<(TokenType, usize)> {
         let mut longest_match_index = None;
@@ -144,21 +144,30 @@ impl TokenMap {
     }
 }
 
-fn token_regex_map() -> Vec<TokenMap> {
+fn create_token_regex_list() -> Vec<TokenRegex> {
     let mut v = Vec::new();
-    v.push(TokenMap(TokenType::OpenParen, Regex::new("^\\($").unwrap()));
-    v.push(TokenMap(
+    v.push(TokenRegex(
+        TokenType::OpenParen,
+        Regex::new("^\\($").unwrap(),
+    ));
+    v.push(TokenRegex(
         TokenType::CloseParen,
         Regex::new("^\\)$").unwrap(),
     ));
-    v.push(TokenMap(TokenType::OpenBrace, Regex::new("^\\{$").unwrap()));
-    v.push(TokenMap(TokenType::CloseBrace, Regex::new("^}$").unwrap()));
-    v.push(TokenMap(TokenType::SemiColon, Regex::new("^;$").unwrap()));
-    v.push(TokenMap(
+    v.push(TokenRegex(
+        TokenType::OpenBrace,
+        Regex::new("^\\{$").unwrap(),
+    ));
+    v.push(TokenRegex(
+        TokenType::CloseBrace,
+        Regex::new("^}$").unwrap(),
+    ));
+    v.push(TokenRegex(TokenType::SemiColon, Regex::new("^;$").unwrap()));
+    v.push(TokenRegex(
         TokenType::Identifier,
         Regex::new("^[a-zA-Z_]\\w*\\b$").unwrap(),
     ));
-    v.push(TokenMap(
+    v.push(TokenRegex(
         TokenType::Constant,
         Regex::new("^[0-9]+\\b$").unwrap(),
     ));

@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Sebastian Ibanez
 
+use std::process::ExitCode;
 use std::{fs::File, io::Read};
 
 use crate::cli::{CliArgs, print_help};
@@ -11,15 +12,14 @@ mod lexer;
 mod parser;
 pub mod tokens;
 
-fn main() {
-    let exit_code = match run() {
-        Ok(()) => 0,
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
-            1
+            ExitCode::FAILURE
         }
-    };
-    std::process::exit(exit_code);
+    }
 }
 
 /// Run compiler.
