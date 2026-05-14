@@ -10,6 +10,7 @@ pub enum Error {
     UnableToReadFile,
     LexError,
     UnfinishedMultilineComment,
+    ParserError(String),
 }
 
 impl Display for Error {
@@ -21,6 +22,7 @@ impl Display for Error {
             Self::UnableToReadFile => write!(f, "unable to read file"),
             Self::LexError => write!(f, "unable to lex file"),
             Self::UnfinishedMultilineComment => write!(f, "unfinished multiline comment"),
+            Error::ParserError(msg) => write!(f, "{}", msg),
         }
     }
 }

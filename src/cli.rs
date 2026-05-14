@@ -27,7 +27,7 @@ impl CliArgs {
     pub fn collect_args() -> Result<Self, Error> {
         let mut file = None;
         let mut flags = HashSet::new();
-        let raw_args: Vec<String> = args().skip(1).collect();
+        let raw_args: Vec<String> = args().collect();
         for arg in raw_args {
             match arg.as_str() {
                 "-h" | "--help" => {

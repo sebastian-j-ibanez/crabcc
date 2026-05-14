@@ -1,15 +1,17 @@
 // Copyright (c) 2026 Sebastian Ibanez
 
+use std::collections::VecDeque;
+
 use crate::tokens::{Token, TokenType};
 use regex::Regex;
 
 use crate::error::Error;
 
 /// Tokenize input.
-pub fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
+pub fn lex_input(input_chars: &mut Vec<char>) -> Result<VecDeque<Token>, Error> {
     let original_input = input_chars.clone();
-    let mut cursor = 0;
-    let mut tokens: Vec<Token> = Vec::new();
+    let mut cursor = 0; // TODO: also track line count (for better error messages).
+    let mut tokens: VecDeque<Token> = VecDeque::new();
     while !input_chars.is_empty() {
         // Trim any leading whitespace.
         let whitespace_count = trim_whitespace(input_chars);
@@ -90,14 +92,14 @@ pub fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
         };
 
         // Add substring to tokens.
-        let token = Token::new(&value, token_type);
+        let token = Token::new(value, token_type, cursor);
 
         // Remove matched substring from chars.
         input_chars.drain(..=index);
         cursor += index + 1;
 
         match token_type {
-            TokenType::Identifier | TokenType::Constant => {
+            TokenType::Identifier | TokenType::Literal => {
                 if let Some(&next_char) = input_chars.first() {
                     if next_char.is_ascii_alphanumeric() || next_char == '_' {
                         eprintln!("invalid identifier or constant");
@@ -108,7 +110,7 @@ pub fn lex_input(input_chars: &mut Vec<char>) -> Result<Vec<Token>, Error> {
             _ => {}
         }
 
-        tokens.push(token);
+        tokens.push_back(token);
     }
     Ok(tokens)
 }
@@ -168,7 +170,7 @@ fn create_token_regex_list() -> Vec<TokenRegex> {
         Regex::new("^[a-zA-Z_]\\w*\\b$").unwrap(),
     ));
     v.push(TokenRegex(
-        TokenType::Constant,
+        TokenType::Literal,
         Regex::new("^[0-9]+\\b$").unwrap(),
     ));
     v

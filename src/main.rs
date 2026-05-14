@@ -4,6 +4,7 @@ use std::process::ExitCode;
 use std::{fs::File, io::Read};
 
 use crate::cli::{CliArgs, print_help};
+use crate::parser::parse_tokens;
 use crate::{cli::CliFlag, error::Error};
 
 mod cli;
@@ -35,18 +36,26 @@ fn run() -> Result<(), Error> {
     let lexer = args.find_flag(CliFlag::Lex);
     let parser = args.find_flag(CliFlag::Parse);
     let codegen = args.find_flag(CliFlag::Codegen);
+    let debug = args.find_flag(CliFlag::Debug);
     let run_all = !lexer && !parser && !codegen; // Run all 3 stages by default.
 
     // Run lexer
-    if lexer || run_all {
+    if lexer || parser || codegen || run_all {
         let mut chars = read_file(args.get_file_name())?;
-        let _tokens = lexer::lex_input(&mut chars)?;
-        if args.find_flag(CliFlag::Debug) {
-            dbg!(_tokens);
+        let mut tokens = lexer::lex_input(&mut chars)?;
+        if debug {
+            println!("[INFO] lexer output:");
+            dbg!(&tokens);
         }
 
         // Run parser
-        if parser || run_all {
+        if parser || codegen || run_all {
+            let ast = parse_tokens(&mut tokens)?;
+            if debug {
+                println!("[INFO] parser output:");
+                dbg!(&ast);
+            }
+
             // Run codegen
             if codegen || run_all {
                 todo!();
